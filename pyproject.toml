@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=75,<85", "wheel>=0.44,<1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dhcp-scope-sentinel"
+version = "0.1.0"
+description = "Offline DHCPv4 scope security, configuration drift and observed offer guard"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Felipe Watter" }]
+keywords = ["dhcp", "ipam", "security", "ddi", "network-operations", "sarif", "configuration-drift"]
+classifiers = ["Programming Language :: Python :: 3", "Operating System :: OS Independent", "Topic :: System :: Networking", "Topic :: Security"]
+dependencies = []
+
+[project.scripts]
+dhcp-scope-sentinel = "dhcp_scope_sentinel.cli:main"
+
+[project.urls]
+Repository = "https://github.com/felipewatter/dhcp-scope-sentinel"
+Issues = "https://github.com/felipewatter/dhcp-scope-sentinel/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

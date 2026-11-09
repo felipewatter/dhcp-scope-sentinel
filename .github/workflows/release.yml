@@ -1,0 +1,90 @@
+name: Publish after validated CI
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: dhcp-scope-sentinel-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout exact CI-passed revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Configure Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Verify successful CI provenance and immutable tag
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          CI_RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$TESTED_SHA" || { echo 'main advanced; refusing stale release'; exit 1; }
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.conclusion')" = 'success'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.event')" = 'push'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" --jq '.head_sha')" = "$TESTED_SHA"
+          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          test "$(PYTHONPATH=src python -c 'from dhcp_scope_sentinel import __version__; print(__version__)')" = "$VERSION"
+          TAG="v$VERSION"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Existing version preserved; no republishing.'
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+          else
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+              echo 'Tag exists without a release; refusing to rebind tag.'
+              exit 1
+            fi
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Re-run tests on release checkout
+        if: steps.gate.outputs.publish == 'true'
+        run: python -m unittest discover -s tests -v
+        env:
+          PYTHONPATH: src
+      - name: Build wheel and source ZIP with checksums
+        if: steps.gate.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip wheel --no-deps . -w dist
+          python scripts/build_release.py dist
+          cd dist
+          sha256sum -c dhcp-scope-sentinel-v*-SHA256SUMS.txt
+      - name: Publish a new GitHub Release only
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          TAG="v$VERSION"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$TESTED_SHA"
+          gh release create "$TAG" dist/* \
+            --repo "$GITHUB_REPOSITORY" --target "$TESTED_SHA" \
+            --title "DHCP ScopeSentinel $TAG" --notes-file docs/RELEASE_NOTES.md --latest

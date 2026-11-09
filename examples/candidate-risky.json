@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "segments": [
+    {
+      "id": "SCHOOL-LAB", "vrf": "CAMPUS", "vlan": 120,
+      "network": "10.20.120.0/24", "gateway": "10.20.120.1",
+      "dns_servers": ["10.20.0.10", "10.20.0.11"],
+      "authorized_servers": ["10.20.0.2", "10.20.0.3"],
+      "trusted_relays": ["relay-campus-120"], "require_relay": true,
+      "static_hosts": [{"ip": "10.20.120.10", "asset": "print-server"}],
+      "scopes": [
+        {"id": "LAB-PRIMARY", "server": "10.20.0.2", "failover_group": "LAB-HA",
+         "pools": [["10.20.120.100", "10.20.120.180"]], "exclusions": [["10.20.120.150", "10.20.120.150"]],
+         "reservations": [{"ip": "10.20.120.150", "client_id": "training-terminal"}]},
+        {"id": "LAB-SECONDARY", "server": "10.20.0.3", "failover_group": "LAB-HA",
+         "pools": [["10.20.120.100", "10.20.120.180"]], "exclusions": [["10.20.120.150", "10.20.120.150"]],
+         "reservations": [{"ip": "10.20.120.150", "client_id": "training-terminal"}]}
+      ]
+    }
+  ],
+  "observations": [
+    {"segment": "SCHOOL-LAB", "server_ip": "10.20.0.99", "offered_ip": "10.20.120.10", "client_id": "lab-011",
+     "router": "10.20.120.254", "relay_id": "unknown-relay", "dns_servers": ["8.8.8.8"]}
+  ]
+}

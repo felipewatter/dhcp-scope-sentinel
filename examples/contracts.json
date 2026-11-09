@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "contracts": [
+    {
+      "segment": "SCHOOL-LAB",
+      "min_usable_capacity": 60,
+      "must_require_relay": true,
+      "max_scopes": 2,
+      "dns_allowlist": [
+        "10.20.0.10",
+        "10.20.0.11"
+      ],
+      "authorized_server_allowlist": [
+        "10.20.0.2",
+        "10.20.0.3"
+      ],
+      "approved_gateway": "10.20.120.1",
+      "approved_network": "10.20.120.0/24",
+      "trusted_relay_allowlist": [
+        "relay-campus-120"
+      ]
+    }
+  ]
+}
